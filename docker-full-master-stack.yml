@@ -1,0 +1,123 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    restart: always
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - octopus
+
+  mongodb:
+    image: mongo:4.4
+    restart: always
+    env_file:
+      - mongodb/.env
+    volumes:
+      - mongodb:/data/db
+    ports:
+      - 28017:27017
+    networks:
+      - octopus
+
+  influxdb:
+    image: influxdb:2.0-alpine
+    restart: always
+    env_file:
+      - influxdb/.env
+    volumes:
+      - influxdb2:/var/lib/influxdb2
+      - influxdb2-config:/etc/influxdb2
+    ports:
+      - 8086:8086
+    networks:
+      - octopus
+
+  agent:
+    image: parisnk/octopus-docker-agent:latest
+    env_file:
+    - agent/master.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  rest-api:
+    image: parisnk/octopus-docker-rest-api:latest
+    env_file:
+    - rest-api/master.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  webhook-api:
+    image: pnksh/octopus-webhook:latest
+    env_file:
+      - webhook-api/master.env
+    ports:
+      - 13015:5000
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      replicas: 2
+      labels:
+        webhook_autodeploy: 'true'
+        webhook_identifier: docker-webhook-notifications
+        webhook_tag: main
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # amqp-deployment:
+  #   restart: always
+
+  # amqp-webhook:
+  #   restart: always
+
+
+volumes:
+  mongodb:
+  rabbitmq:
+  influxdb2:
+  influxdb2-config:
+  
+networks:
+  octopus:
+    driver: overlay
