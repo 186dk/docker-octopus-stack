@@ -4,6 +4,8 @@ services:
   rabbitmq:
     image: rabbitmq:3.8-management-alpine
     restart: always
+    env_file:
+    - rabbitmq/master.env
     volumes:
       - rabbitmq:/var/lib/rabbitmq
     ports:
@@ -38,7 +40,7 @@ services:
       - octopus
 
   agent:
-    image: parisnk/octopus-docker-agent:latest
+    image: pnksh/octopus-docker-agent:latest
     env_file:
     - agent/master.env
     volumes:
@@ -57,9 +59,11 @@ services:
           memory: 256M
 
   rest-api:
-    image: parisnk/octopus-docker-rest-api:latest
+    image: pnksh/octopus-docker-rest-api:latest
     env_file:
     - rest-api/master.env
+    ports:
+      - 13014:5000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -105,11 +109,47 @@ services:
           cpus: '1.0'
           memory: 512M
 
-  # amqp-deployment:
-  #   restart: always
+  amqp-deployment:
+    restart: always
+    image: pnksh/octopus-amqp-deployment:latest
+    env_file:
+      - amqp-deployment/master.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
-  # amqp-webhook:
-  #   restart: always
+  amqp-webhook:
+    restart: always
+    image: pnksh/octopus-amqp-webhook:latest
+    env_file:
+      - amqp-webhook/master.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
 
 volumes:
