@@ -1,0 +1,125 @@
+version: "3.9"
+
+services:
+  agent:
+    image: pnksh/octopus-docker-agent:latest
+    env_file:
+    - agent/master.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  rest-api:
+    image: pnksh/octopus-docker-rest-api:latest
+    env_file:
+    - rest-api/master.env
+    ports:
+      - 13014:5000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  webhook-api:
+    image: pnksh/octopus-webhook:latest
+    env_file:
+      - webhook-api/master.env
+    ports:
+      - 13015:5000
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      replicas: 2
+      labels:
+        webhook_autodeploy: 'true'
+        webhook_identifier: docker-webhook-notifications
+        webhook_tag: main
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  amqp-deployment:
+    restart: always
+    image: pnksh/octopus-amqp-deployment:latest
+    env_file:
+      - amqp-deployment/master.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  amqp-webhook:
+    restart: always
+    image: pnksh/octopus-amqp-webhook:latest
+    env_file:
+      - amqp-webhook/master.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+
+volumes:
+  mongodb:
+  rabbitmq:
+  influxdb2:
+  influxdb2-config:
+  
+networks:
+  octopus:
+    driver: overlay
