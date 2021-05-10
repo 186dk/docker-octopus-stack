@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  agent:
+    image: pnksh/octopus-docker-agent:latest
+    env_file:
+    - agent/worker.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  rest-api:
+    image: pnksh/octopus-docker-rest-api:latest
+    env_file:
+    - rest-api/worker.env
+    ports:
+      - 13014:5000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+    deploy:
+      mode: global
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  amqp-deployment:
+    restart: always
+    image: pnksh/octopus-amqp-deployment:latest
+    env_file:
+      - amqp-deployment/worker.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  amqp-webhook:
+    restart: always
+    image: pnksh/octopus-amqp-webhook:latest
+    env_file:
+      - amqp-webhook/worker.env
+    networks:
+      - octopus
+    logging:
+      driver: json-file
+      options:
+        max-file: '10'
+        max-size: 1M
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+
+networks:
+  octopus:
+    driver: overlay
